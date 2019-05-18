@@ -1,0 +1,215 @@
+---
+title: "dba_homework"
+author: "xiaolin"
+date: "2019/5/14"
+output:
+  html_notebook:
+    fig_caption: yes
+    number_sections: yes
+    toc: yes
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 研究背景
+
+  FoodMart（以下简称“FoodMart”或“连锁店”）是一家大型食品连锁店，冷冻加工食品的领先制造商。其专注于快速，方便，易于加热和即食烹饪的产品。产品包括全系列的清真食品，无酵面包，泥炉或粘土烤面包，蔬菜小吃，肉类零食，传统甜点和即食食品。
+  本数据分析团队受托于FoodMart管理层，对该连锁店的顾客、产品及销售的内在关联关系展开研究，以帮助管理层更好地了解经营状况，以提高管理水平，改良销售状况。
+
+***
+
+# 研究内容与研究方法
+
+  本研究基于连锁店的顾客与产品信息、及两年内销售记录展开。研究内容包括：
+  （1）描述统计FoodMart顾客基本信息与全产品系列；
+  （2）顾客画像绘制：基于顾客基本信息聚类顾客群体，绘制各类顾客的用户画像；
+  （3）关于会员卡决策的顾客行为分析：基于会员卡开通情况，回答“不同类型的会员卡分别对应怎样的顾客群体？”；
+  （4）关于购物决策的顾客行为分析：基于一年内销售记录，回答“顾客自身特点与其对销售额的贡献程度是否有关系，为何种关系？”。
+为了达到上述研究目的，团队使用聚类、分类与关联等多种方法，基于Weka、Tableau、Python、SPSS等工具软件展开研究。
+
+***
+
+# 数据描述
+  数据集收录的内容包括：
+  （1）顾客基本信息：收录两年内于FoodMart产生购物行为的共10281名顾客的基本信息，从婚姻状况（marital_status）、年收入（yearly_income）、性别（gender）、受教育状况（education）、家庭子女状况（total_children&num_children_at_home）、会员卡开办情况（member_card）等10个基本维度描绘顾客画像。同时，对数据进行预处理，增加用户销售贡献额（momentary）、用户购物频率（frequency）、上次购物时隔（recency）三个变量，以助于研究顾客价值。
+  （2）全产品系列：收录包括蔬菜（vegetables）、奶制品（diary）、酒类（beer&wine）等47大类、110小类共1560种产品。
+  （3）交易记录：收录两年内FoodMart连锁店产生的全部交易行为。
+
+***
+
+# 数据分析
+
+## 描述性统计
+
+### 顾客信息描述性统计
+
+  在本部分，本分析团队选择了几个关键维度对顾客的基本信息进行可视化描述，以对数据形成初步的认识，为后续的深入挖掘打下基础。
+
+>首先进行数据集的加载和必要包的载入
+
+```{r}
+library(ggplot2)
+df=read.csv("E:/BDA/group_homework/customer_backup.csv",sep=",",header = TRUE,encoding = "utf-8")
+attach(df)
+df$account_num=as.character(account_num)
+df$birthdate=as.Date(birthdate)
+df$date_accnt_opened=as.Date(date_accnt_opened)
+detach(df)
+```
+
+>查看数据大小和数据结构
+
+```{r}
+class(df)
+dim(df)
+head(df)
+tail(df)
+```
+  数据一共10281行，27列
+
+>查看数据大致信息,即基本特征
+
+```{r}
+summary(df)
+```
+
+>顾客性别与婚姻分布描述
+
+```{r}
+ggplot(data=df)+geom_bar(mapping = aes(gender,fill=gender))
+ggplot(data=df)+geom_bar(mapping = aes(df$marital_status,fill=df$marital_status))
+```
+
+  可见在FoodMart8736名顾客中，男女和已婚与未婚的人数比例均接近1:1
+
+>顾客职业分布描述
+
+```{r}
+#ggplot(data=df)+geom_bar(mapping = aes(occupation,fill=occupation))
+ggplot(data = df) + geom_bar(mapping = aes(x = occupation, y = ..prop.., group = 1))
+```
+  如图所示，职业为Professional的顾客数量最多，占顾客总人数的30%以上，其次是职业为Skilled Manual和Manual的顾客，各占顾客总人数的25%，职业为Management的顾客人数占15%，职业为Clerical的顾客人数最少，只占顾客总人数的2%。
+
+>顾客收入水平描述
+
+1.  最低收入描述
+```{r}
+ggplot(data=df)+geom_histogram(mapping = aes(df$yearly_income_from,fill=df$occupation),stat = "count")
+```
+
+2.  最高收入描述
+```{r}
+ggplot(data=df)+geom_histogram(mapping = aes(df$yearly_income_to,fill=df$occupation),stat = "count")
+```
+
+  由以上两图，顾客中工资高的人少于工资较低的人，说明FoodMart顾客群体总体而言偏向低收入人群。
+
+>顾客子女数量描述
+
+1.  顾客当下家中孩子数量
+```{r}
+ggplot(data=df)+geom_bar(mapping = aes(x=num_children_at_home, y = ..prop.., group = 1))
+```
+
+  如图所示，60%以上的顾客现在家中没有孩子需要抚养，家中孩子数量为1-4的顾客人数越来越少。绝大多数客户当下家中没有或只有一个孩子需要抚养。
+
+2.  顾客总共抚养的子女数量
+
+```{r}
+ggplot(data=df)+geom_bar(mapping = aes(x=total_children, y = ..prop.., group = 1))
+```
+
+  如图所示，90%以上的顾客养育过子女，抚养孩子数量为1-4的顾客人数几乎相同，各占总人数的20%，抚养有5个孩子的顾客人数最少，只占总人数的10%。
+  以上数据非常有趣，养育过孩子的人很多，占90%左右，但是当下家里还有孩子需要抚养的人却连40%都不到，这是否说明我们的顾客是以中老年的人为主呢？
+
+>顾客年龄描述
+
+```{r}
+ggplot(data=df)+geom_bar(mapping = aes(df$birthdate))
+```
+  可见大部分顾客出生于1960年之前，甚至还有生于1920年之前的，以数据所在的1997年来看，顾客中大部分人已经年逾不惑，印证了我们上边的猜想。
+
+
+***
+
+### 全产品系列描述性统计
+
+>首先读取数据集，载入必要R包
+
+```{r}
+library(ggplot2)
+dp=read.csv("E:/BDA/group_homework/sales_fact_1997.csv",sep=",",header = TRUE,encoding = "utf-8")
+
+```
+
+>查看基本数据信息
+
+```{r}
+class(dp)
+dim(dp)
+head(dp)
+tail(dp)
+```
+  数据一共210429行10列
+>查看数据各项的基本特征
+
+```{r}
+summary(dp)
+```
+>产品主要类别销量统计
+
+```{r}
+bar <- ggplot(data = dp) + 
+  geom_bar(
+    mapping = aes(x = alpha_class, fill = alpha_class), 
+    show.legend = FALSE,
+    width = 1
+  ) + 
+  theme(aspect.ratio = 1) +
+  labs(x = NULL, y = NULL)
+bar + coord_polar()
+```
+
+  如图所示，FoodMart的产品一共可分为三大类别，分别是Drink，Food与Non-Consumable，Food类产品的销量占所有类别产品总销量的2/3以上，Drink类别的销量最少，仅占总销量的7%。
+
+>产品次要类别销量统计
+
+```{r}
+bar <- ggplot(data = dp) + 
+  geom_bar(
+    mapping = aes(x = product_class_name, fill = product_class_name), 
+    show.legend = FALSE,
+    width = 1
+  ) + 
+  theme(aspect.ratio = 1) +
+  labs(x = NULL, y = NULL)
+
+summary(dp$product_class_name)
+```
+  由于图形实在过于模糊，选择summary函数查看，可以看到，Vegetable和Snack Foods是FoodMart最受欢迎的产品，其次是Baking Goods，Bread，Breakfast Foods，Meat，Fruit，Dairy等等产品，Drink和Non-Consumable类别的子产品销量均较少，并不是FoodMart的主营产品。
+
+
+***
+
+## 顾客群体划分与价值评估——聚类（K-Means）
+
+  本分析团队基于个人收入与消费行为两个维度共4个关键变量，截取宽度为两年的历史数据，使用K-Means聚类方法对FoodMart顾客群体进行挖掘与分析，通过R语言在Rtudio上进行实现。
+
+>关键变量描述与数据预处理
+
+```{r}
+
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
